@@ -15,6 +15,12 @@ from sklearn.linear_model import LinearRegression
 from hmmlearn import hmm
 from alpha_vantage_client import AlphaVantageClient
 
+# Alpha Vantage API key
+ALPHA_VANTAGE_API_KEY = "73KWO176IRABCOCJ"
+
+# Output file
+OUTPUT_FILE = "STOCK_ANALYSIS_RESULTS.txt"
+
 # Try to import functions from advanced_quant_functions_backup
 # If it fails, we'll implement the functions ourselves
 try:
@@ -32,6 +38,7 @@ ALPHA_VANTAGE_API_KEY = "73KWO176IRABCOCJ"
 # Output file
 OUTPUT_FILE = "STOCK_ANALYSIS_RESULTS.txt"
 
+# After all function definitions, at the bottom of the file
 # Using our own implementations if imports failed
 if not USE_BACKUP_FUNCTIONS:
     calculate_sigma = calculate_sigma_implementation
@@ -1919,7 +1926,6 @@ def calculate_sigma_implementation(data):
                     0.10 * momentum_components["momentum"] +
                     0.05 * momentum_components["williams_r"] +
                     0
-            )
 
 def append_stock_result(result):
     """
