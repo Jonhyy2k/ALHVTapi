@@ -1919,6 +1919,7 @@ def calculate_sigma_implementation(data):
                     0.10 * momentum_components["momentum"] +
                     0.05 * momentum_components["williams_r"] +
                     0
+            )
 
 def append_stock_result(result):
     """
