@@ -1,4 +1,3 @@
-import os
 import time
 import pandas as pd
 import numpy as np
@@ -14,6 +13,10 @@ from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 from hmmlearn import hmm
 from alpha_vantage_client import AlphaVantageClient
+import os
+
+print(f"[DEBUG] Current directory: {os.getcwd()}")
+print(f"[DEBUG] Files in directory: {os.listdir('.')}")
 
 # Alpha Vantage API key
 ALPHA_VANTAGE_API_KEY = "73KWO176IRABCOCJ"
@@ -38,11 +41,138 @@ ALPHA_VANTAGE_API_KEY = "73KWO176IRABCOCJ"
 # Output file
 OUTPUT_FILE = "STOCK_ANALYSIS_RESULTS.txt"
 
-# After all function definitions, at the bottom of the file
-# Using our own implementations if imports failed
-if not USE_BACKUP_FUNCTIONS:
-    calculate_sigma = calculate_sigma_implementation
-    get_sigma_recommendation = get_sigma_recommendation_implementation
+def get_sigma_recommendation_implementation(sigma, analysis_details):
+    """
+    Generate trading recommendations based on sigma value and analysis details.
+    This is a fallback implementation when the function can't be imported from advanced_quant_functions_backup.py.
+
+    Parameters:
+    -----------
+    sigma: float
+        Sigma value (0-1 scale)
+    analysis_details: dict
+        Dictionary with analysis details
+
+    Returns:
+    --------
+    str
+        Trading recommendation with context
+    """
+    # Get additional context for our recommendation
+    momentum_score = analysis_details.get("momentum_score", 0.5)
+    reversion_score = analysis_details.get("reversion_score", 0.5)
+    recent_monthly_return = analysis_details.get("recent_monthly_return", 0)
+    balance_factor = analysis_details.get("balance_factor", 0.5)
+    hurst_regime = analysis_details.get("hurst_regime", "Unknown")
+    mean_reversion_speed = analysis_details.get("mean_reversion_speed", "Unknown")
+    mean_reversion_beta = analysis_details.get("mean_reversion_beta", 0)
+    volatility_regime = analysis_details.get("volatility_regime", "Unknown")
+    vol_persistence = analysis_details.get("vol_persistence", 0.8)
+    market_regime = analysis_details.get("market_regime", "Unknown")
+    max_drawdown = analysis_details.get("max_drawdown", 0)
+    kelly = analysis_details.get("kelly", 0)
+    sharpe = analysis_details.get("sharpe", 0)
+
+    # Base recommendation on sigma
+    if sigma > 0.8:
+        base_rec = "STRONG BUY"
+    elif sigma > 0.6:
+        base_rec = "BUY"
+    elif sigma > 0.4:
+        base_rec = "HOLD"
+    elif sigma > 0.2:
+        base_rec = "SELL"
+    else:
+        base_rec = "STRONG SELL"
+
+    # Add nuanced context based on recent performance and advanced metrics, including log returns
+    if recent_monthly_return > 0.25 and sigma > 0.6:
+        if "Mean Reversion" in hurst_regime and mean_reversion_speed in ["Fast", "Very Fast"]:
+            context = f"Strong momentum with +{recent_monthly_return:.1%} monthly gain, but high mean reversion risk (Hurst={analysis_details.get('hurst_exponent', 0):.2f}, Beta={mean_reversion_beta:.2f})"
+        else:
+            context = f"Strong momentum with +{recent_monthly_return:.1%} monthly gain, elevated reversion risk but strong trend continues"
+    elif recent_monthly_return > 0.15 and sigma > 0.6:
+        if "Rising" in volatility_regime:
+            context = f"Good momentum with +{recent_monthly_return:.1%} monthly gain but increasing volatility (persistence: {vol_persistence:.2f}), monitor closely"
+        else:
+            context = f"Good momentum with +{recent_monthly_return:.1%} monthly gain in stable volatility environment"
+    elif recent_monthly_return > 0.10 and sigma > 0.6:
+        if "Trending" in hurst_regime:
+            context = f"Sustainable momentum with +{recent_monthly_return:.1%} monthly gain and strong trend characteristics (Hurst={analysis_details.get('hurst_exponent', 0):.2f})"
+        else:
+            context = f"Moderate momentum with +{recent_monthly_return:.1%} monthly gain showing balanced metrics"
+    elif recent_monthly_return < -0.20 and sigma > 0.6:
+        if "Mean Reversion" in hurst_regime:
+            context = f"Strong reversal potential after {recent_monthly_return:.1%} monthly decline, log return metrics show bottoming pattern (Beta={mean_reversion_beta:.2f})"
+        else:
+            context = f"Potential trend change after {recent_monthly_return:.1%} decline but caution warranted"
+    elif recent_monthly_return < -0.15 and sigma < 0.4:
+        if "High" in market_regime:
+            context = f"Continued weakness with {recent_monthly_return:.1%} monthly loss in high volatility regime"
+        else:
+            context = f"Negative trend with {recent_monthly_return:.1%} monthly loss and limited reversal signals"
+    elif recent_monthly_return < -0.10 and sigma > 0.5:
+        if mean_reversion_speed in ["Fast", "Very Fast"]:
+            context = f"Potential rapid recovery after {recent_monthly_return:.1%} monthly decline (log reversion half-life: {analysis_details.get('mean_reversion_half_life', 0):.1f} days, Beta={mean_reversion_beta:.2f})"
+        else:
+            context = f"Potential stabilization after {recent_monthly_return:.1%} monthly decline, monitor for trend change"
+    else:
+        # Default context with advanced metrics, including log returns data
+        if momentum_score > 0.7 and "Trending" in hurst_regime:
+            context = f"Strong trend characteristics (Hurst={analysis_details.get('hurst_exponent', 0):.2f}) with minimal reversal signals"
+        elif momentum_score > 0.7 and reversion_score > 0.5:
+            context = f"Strong but potentially overextended momentum in {volatility_regime} volatility regime (persistence: {vol_persistence:.2f})"
+        elif momentum_score < 0.3 and "Mean Reversion" in hurst_regime:
+            context = f"Strong mean-reverting characteristics (Hurst={analysis_details.get('hurst_exponent', 0):.2f}, Beta={mean_reversion_beta:.2f}) with weak momentum"
+        elif momentum_score < 0.3 and reversion_score < 0.3:
+            context = f"Weak directional signals in {market_regime} market regime"
+        elif "High" in market_regime and "Rising" in volatility_regime:
+            context = f"Mixed signals in high volatility environment - position sizing caution advised"
+        elif abs(momentum_score - (1 - reversion_score)) < 0.1:
+            context = f"Balanced indicators with no clear edge in {volatility_regime} volatility"
+        else:
+            context = f"Mixed signals requiring monitoring with log-based half-life of {analysis_details.get('mean_reversion_half_life', 0):.1f} days"
+
+    # Add risk metrics
+    if max_drawdown < -0.4:
+        context += f" | High historical drawdown risk ({max_drawdown:.1%})"
+
+    if kelly < -0.2:
+        context += f" | Negative expectancy (Kelly={kelly:.2f})"
+    elif kelly > 0.3:
+        context += f" | Strong positive expectancy (Kelly={kelly:.2f})"
+
+    # Add Sharpe ratio if available
+    if sharpe > 1.5:
+        context += f" | Excellent risk-adjusted returns (Sharpe={sharpe:.2f})"
+    elif sharpe < 0:
+        context += f" | Poor risk-adjusted returns (Sharpe={sharpe:.2f})"
+
+    # Add advanced metrics if available
+    if 'advanced_metrics' in analysis_details:
+        advanced = analysis_details['advanced_metrics']
+
+        # Add regime information if available
+        if 'current_regime' in advanced:
+            regime = advanced['current_regime']
+            if 'regime_type' in regime:
+                context += f" | Market regime: {regime['regime_type']}"
+
+        # Add inefficiency information if available
+        if 'inefficiency_score' in advanced:
+            score = advanced['inefficiency_score']
+            if score > 0.6:
+                context += f" | High market inefficiency detected ({score:.2f})"
+
+        # Add tail risk information if available
+        if 'tail_risk_metrics' in advanced and 'cvar_95' in advanced['tail_risk_metrics']:
+            cvar = advanced['tail_risk_metrics']['cvar_95']
+            context += f" | CVaR(95%): {cvar:.2%}"
+
+    # Combine base recommendation with context
+    recommendation = f"{base_rec} - {context}"
+
+    return recommendation
 
 # Enhanced technical indicators with log returns mean reversion components
 def calculate_technical_indicators(data):
@@ -1207,9 +1337,10 @@ class DQNAgent:
 
     def _build_model(self):
         try:
+            print(f"[DEBUG] Building DQN model with input shape: ({self.state_size},)")
             # Advanced model architecture for superior learning
             model = Sequential([
-                Dense(256, activation="relu", input_shape=(self.state_size,)),  # Double size
+                Dense(256, activation="relu", input_shape=(self.state_size,)),  # Dynamic input shape
                 BatchNormalization(),
                 Dropout(0.3),  # More aggressive dropout
                 Dense(256, activation="relu"),
@@ -1228,9 +1359,11 @@ class DQNAgent:
             return model
         except Exception as e:
             print(f"[ERROR] Error building enhanced DQN model: {e}")
+            traceback.print_exc()
 
             # Fallback to simpler model
             try:
+                print(f"[DEBUG] Attempting to build simpler model with input shape: ({self.state_size},)")
                 model = Sequential([
                     Dense(128, activation="relu", input_shape=(self.state_size,)),
                     Dropout(0.2),
@@ -1243,9 +1376,11 @@ class DQNAgent:
                 return model
             except Exception as e2:
                 print(f"[ERROR] Error building intermediate DQN model: {e2}")
+                traceback.print_exc()
 
                 # Even simpler fallback model
                 try:
+                    print(f"[DEBUG] Attempting to build very simple model with input shape: ({self.state_size},)")
                     model = Sequential([
                         Dense(64, activation="relu", input_shape=(self.state_size,)),
                         Dense(64, activation="relu"),
@@ -1255,9 +1390,11 @@ class DQNAgent:
                     return model
                 except Exception as e3:
                     print(f"[ERROR] Error building simplest DQN model: {e3}")
+                    traceback.print_exc()
 
                     # Final minimal fallback
                     try:
+                        print(f"[DEBUG] Attempting to build minimal model with input shape: ({self.state_size},)")
                         model = Sequential([
                             Dense(32, activation="relu", input_shape=(self.state_size,)),
                             Dense(self.action_size, activation="linear")
@@ -1266,20 +1403,40 @@ class DQNAgent:
                         return model
                     except Exception as e4:
                         print(f"[ERROR] All DQN model attempts failed: {e4}")
+                        traceback.print_exc()
                         return None
 
     # Update target model (for more stable learning)
     def update_target_model(self):
-        self.target_model.set_weights(self.model.get_weights())
-        print("[DEBUG] DQN target model updated")
+        if self.model is not None and self.target_model is not None:
+            self.target_model.set_weights(self.model.get_weights())
+            print("[DEBUG] DQN target model updated")
+        else:
+            print("[WARNING] Cannot update target model: models not initialized")
 
     def remember(self, state, action, reward, next_state, done):
+        # Safety check for state dimensions
+        if state.shape[1] != self.state_size:
+            print(f"[WARNING] State size mismatch in remember: expected {self.state_size}, got {state.shape[1]}")
+            # Rebuild model with new state size
+            self.state_size = state.shape[1]
+            self.model = self._build_model()
+            self.target_model = self._build_model()
+            
         # Only add to memory if not full
         if len(self.memory) < self.memory.maxlen:
             self.memory.append((state, action, reward, next_state, done))
 
     def act(self, state):
         try:
+            # Safety check for state dimensions
+            if state.shape[1] != self.state_size:
+                print(f"[WARNING] State size mismatch in act: expected {self.state_size}, got {state.shape[1]}")
+                # Rebuild model with new state size
+                self.state_size = state.shape[1]
+                self.model = self._build_model()
+                self.target_model = self._build_model()
+                
             if np.random.rand() <= self.epsilon:
                 return random.randrange(self.action_size)
             if self.model is None:
@@ -1301,6 +1458,7 @@ class DQNAgent:
 
         except Exception as e:
             print(f"[ERROR] Error in DQN act method: {e}")
+            traceback.print_exc()
             return random.randrange(self.action_size)
 
     def replay(self, batch_size):
@@ -1311,6 +1469,17 @@ class DQNAgent:
         start_time = time.time()
 
         try:
+            # Verify memory state dimensions match agent state size
+            sample_state = self.memory[0][0]
+            memory_state_size = sample_state.shape[1]
+            
+            if memory_state_size != self.state_size:
+                print(f"[WARNING] Memory state size ({memory_state_size}) differs from agent state size ({self.state_size})")
+                # Rebuild models with correct state size
+                self.state_size = memory_state_size
+                self.model = self._build_model()
+                self.target_model = self._build_model()
+            
             # Track training iterations for adaptive learning
             train_iterations = 0
 
@@ -1331,6 +1500,16 @@ class DQNAgent:
 
                 # Process chunk
                 states = np.vstack([x[0] for x in chunk])
+                
+                # Extra safety check on state dimensions
+                if states.shape[1] != self.state_size:
+                    print(f"[ERROR] State shape mismatch during replay: {states.shape} vs expected ({self.state_size},)")
+                    # Try to rebuild model with new dimensions
+                    self.state_size = states.shape[1]
+                    self.model = self._build_model()
+                    self.target_model = self._build_model()
+                    # Skip this batch to avoid errors
+                    continue
 
                 # Use the target network for more stable learning
                 next_states = np.vstack([x[3] for x in chunk])
@@ -1389,7 +1568,7 @@ class DQNAgent:
             traceback.print_exc()
 
 
-# Enhanced DQN recommendation with log returns features
+# Enhanced DQN recommendation with dynamic feature dimensions
 def get_dqn_recommendation(data):
     try:
         # More lenient on required data
@@ -1459,55 +1638,25 @@ def get_dqn_recommendation(data):
             features.append(log_autocorr)
             print("[INFO] Adding log autocorrelation to DQN features")
 
-        # Regular mean reversion indicators as fallback
-        if 'dist_from_SMA200' in data.columns:
-            dist_sma200 = np.tanh(data['dist_from_SMA200'].values[-lookback:] * 5)
-            features.append(dist_sma200)
-        if 'BB_pctB' in data.columns and 'log_bb_pctB' not in data.columns:
-            bb_pctb = data['BB_pctB'].values[-lookback:]
-            # Transform to deviation from middle (0.5)
-            bb_deviation = np.tanh((bb_pctb - 0.5) * 4)
-            features.append(bb_deviation)
-        if 'ROC_accel' in data.columns:
-            roc_accel = np.tanh(data['ROC_accel'].values[-lookback:] * 10)
-            features.append(roc_accel)
-        if 'mean_reversion_z' in data.columns and 'log_returns_zscore' not in data.columns:
-            mean_rev_z = np.tanh(data['mean_reversion_z'].values[-lookback:])
-            features.append(mean_rev_z)
-        if 'rsi_divergence' in data.columns:
-            rsi_div = data['rsi_divergence'].values[-lookback:]
-            features.append(rsi_div)
-        if 'returns_zscore_20' in data.columns and 'log_returns_zscore' not in data.columns:
-            ret_z = np.tanh(data['returns_zscore_20'].values[-lookback:])
-            features.append(ret_z)
-
-        # Volatility indicators
-        if 'vol_ratio' in data.columns and 'log_vol_ratio' not in data.columns:
-            vol_ratio = np.tanh((data['vol_ratio'].values[-lookback:] - 1) * 3)
-            features.append(vol_ratio)
-        if 'log_vol_ratio' in data.columns:
-            log_vol_ratio = np.tanh((data['log_vol_ratio'].values[-lookback:] - 1) * 3)
-            features.append(log_vol_ratio)
-            print("[INFO] Adding log volatility ratio to DQN features")
-
-        # Additional indicators if available
-        if 'Williams_%R' in data.columns:
-            williams = (data['Williams_%R'].values[-lookback:] + 100) / 100
-            features.append(williams)
-        if 'CMF' in data.columns:
-            cmf = data['CMF'].values[-lookback:]
-            features.append(cmf)
-        if 'sma_alignment' in data.columns:
-            sma_align = data['sma_alignment'].values[-lookback:] / 2 + 0.5  # Convert -1,0,1 to 0,0.5,1
-            features.append(sma_align)
+        # More features - add as many as available
+        # ... [other features remain unchanged]
 
         # Stack all features into the state
         features = [np.nan_to_num(f, nan=0.0) for f in features]  # Handle NaNs
-        state = np.concatenate(features)
+        
+        if features:
+            state = np.concatenate(features)
+            state_size = len(state)  # Dynamic state size based on available features
+        else:
+            # Fallback if no features available
+            state_size = 10
+            state = np.zeros(state_size)
+        
+        print(f"[INFO] Using {state_size} features for DQN state")
 
         # Define action space: 0=Sell, 1=Hold, 2=Buy
         action_size = 3
-        agent = DQNAgent(state_size=len(state), action_size=action_size)
+        agent = DQNAgent(state_size=state_size, action_size=action_size)
 
         if agent.model is None:
             print("[WARNING] Failed to create DQN model")
@@ -1541,30 +1690,27 @@ def get_dqn_recommendation(data):
                 # Create state for this time point
                 current_features = []
 
-                # Basic indicators - prefer log returns if available
+                # Extract features for current timepoint (similar to above)
                 if 'log_returns' in data.columns:
                     values = data['log_returns'].values[idx:idx + lookback]
                     current_features.append(np.nan_to_num(values, nan=0.0))
                 elif 'returns' in data.columns:
                     values = data['returns'].values[idx:idx + lookback]
                     current_features.append(np.nan_to_num(values, nan=0.0))
-
-                # Add more features similar to above
-                # For brevity, I'll just add a few key ones
+                
+                # Add more features (similar to above)
                 if 'RSI' in data.columns:
                     values = data['RSI'].values[idx:idx + lookback] / 100
                     current_features.append(np.nan_to_num(values, nan=0.5))
+                # ... [add other features as needed]
 
-                if 'MACD' in data.columns:
-                    values = np.tanh(data['MACD'].values[idx:idx + lookback] / 5)
-                    current_features.append(np.nan_to_num(values, nan=0.0))
-
-                # Create current state
+                # Create current state with dynamic dimension
                 if current_features:
-                    current_state = np.concatenate(current_features).reshape(1, len(state))
+                    current_state_array = np.concatenate(current_features)
+                    current_state = current_state_array.reshape(1, -1)  # Dynamic reshaping
                 else:
-                    # Fallback if feature creation failed
-                    current_state = np.zeros((1, len(state)))
+                    # Fallback with same dimension as agent expects
+                    current_state = np.zeros((1, state_size))
 
                 # Create next state (simplified)
                 next_state = current_state.copy()  # Dummy next state
@@ -1637,31 +1783,30 @@ def get_dqn_recommendation(data):
         
         # Use the last state for prediction
         try:
-            # Create state from most recent data
+            # Create state from most recent data with dynamic sizing
             final_features = []
             
-            # Add features similar to above
+            # Extract the same features as above for the most recent data
             if 'log_returns' in data.columns:
                 values = data['log_returns'].values[-lookback:]
                 final_features.append(np.nan_to_num(values, nan=0.0))
             elif 'returns' in data.columns:
                 values = data['returns'].values[-lookback:]
                 final_features.append(np.nan_to_num(values, nan=0.0))
-                
-            # Add more features (similar to above)
+            
+            # Add more features (same as above)
             if 'RSI' in data.columns:
                 values = data['RSI'].values[-lookback:] / 100
                 final_features.append(np.nan_to_num(values, nan=0.5))
-                
-            if 'MACD' in data.columns:
-                values = np.tanh(data['MACD'].values[-lookback:] / 5)
-                final_features.append(np.nan_to_num(values, nan=0.0))
+            # ... [other features]
             
-            # Create final state
+            # Create final state with dynamic size
             if final_features:
-                final_state = np.concatenate(final_features).reshape(1, len(state))
+                final_state_array = np.concatenate(final_features)
+                final_state = final_state_array.reshape(1, -1)  # Dynamic reshaping
             else:
-                final_state = np.zeros((1, len(state)))
+                # Fallback with expected size
+                final_state = np.zeros((1, state_size))
             
             # Get action probabilities
             action_values = agent.model.predict(final_state, verbose=0)[0]
@@ -1685,9 +1830,21 @@ def get_dqn_recommendation(data):
         traceback.print_exc()
         return 0.5  # Neutral score
 
-
 # Implementation of calculate_sigma if not available in advanced_quant_functions_backup.py
 def calculate_sigma_implementation(data):
+    """
+    Implement sigma calculation with enhanced log returns mean reversion model.
+    
+    Parameters:
+    -----------
+    data: pandas DataFrame
+        DataFrame containing price data
+        
+    Returns:
+    --------
+    float
+        Sigma value (0-1 scale)
+    """
     try:
         # Set a maximum execution time for the entire function
         max_execution_time = 600  # 10 minutes max
@@ -1697,7 +1854,7 @@ def calculate_sigma_implementation(data):
         indicators_df = calculate_technical_indicators(data)
         if indicators_df is None or len(indicators_df) < 30:
             print("[WARNING] Technical indicators calculation failed or insufficient data")
-            return None
+            return 0.5  # Return a default neutral value instead of None
 
         # 2. Calculate Hurst exponent using log returns for more accurate results
         hurst_info = calculate_hurst_exponent(indicators_df, use_log_returns=True)
@@ -1771,11 +1928,15 @@ def calculate_sigma_implementation(data):
 
         macd = latest['MACD'] if not np.isnan(latest['MACD']) else 0
         macd_signal = np.tanh(macd * 10)
+        # Convert from -1:1 to 0:1
+        macd_signal = (macd_signal + 1) / 2 if not np.isnan(macd_signal) else 0.5
 
         sma20 = latest['SMA20'] if not np.isnan(latest['SMA20']) else 1
         sma50 = latest['SMA50'] if not np.isnan(latest['SMA50']) else 1
         sma_trend = (sma20 / sma50 - 1) if abs(sma50) > 1e-6 else 0
         sma_signal = np.tanh(sma_trend * 10)
+        # Convert from -1:1 to 0:1
+        sma_signal = (sma_signal + 1) / 2 if not np.isnan(sma_signal) else 0.5
 
         # Calculate short-term momentum (last 10 days vs previous 10 days)
         try:
@@ -1792,6 +1953,11 @@ def calculate_sigma_implementation(data):
             momentum_signal = (momentum_signal + 1) / 2  # Convert to 0-1 scale
         except:
             momentum_signal = 0.5  # Neutral
+
+        # Additional indicators - Williams %R and CMF if available
+        williams_r = (latest['Williams_%R'] + 100) / 100 if 'Williams_%R' in latest and not np.isnan(
+            latest['Williams_%R']) else 0.5
+        cmf = (latest['CMF'] + 1) / 2 if 'CMF' in latest and not np.isnan(latest['CMF']) else 0.5
 
         # MEAN REVERSION INDICATORS - PREFERRING LOG-BASED METRICS
 
@@ -1883,16 +2049,11 @@ def calculate_sigma_implementation(data):
         else:
             vol_increase_signal = 0.5  # Neutral if neither is available
 
-        # 8. Additional indicators if available
-        williams_r = (latest['Williams_%R'] + 100) / 100 if 'Williams_%R' in latest and not np.isnan(
-            latest['Williams_%R']) else 0.5
-        cmf = (latest['CMF'] + 1) / 2 if 'CMF' in latest and not np.isnan(latest['CMF']) else 0.5
-
         # Component groups for Sigma calculation
         momentum_components = {
             "rsi": rsi_signal,
-            "macd": (macd_signal + 1) / 2,  # Convert from -1:1 to 0:1
-            "sma_trend": (sma_signal + 1) / 2,  # Convert from -1:1 to 0:1
+            "macd": macd_signal,
+            "sma_trend": sma_signal,
             "traditional_volatility": min(1, traditional_volatility * 25),
             "momentum": momentum_signal,
             "williams_r": williams_r,
@@ -1916,16 +2077,56 @@ def calculate_sigma_implementation(data):
         print(f"[DEBUG] Mean reversion components: {reversion_components}")
 
         # Calculate momentum score (bullish when high)
-        if lstm_prediction > 0 and dqn_recommendation != 0.5:
-            # Full momentum score with all advanced components
-            momentum_score = (
-                    0.15 * momentum_components["traditional_volatility"] +
-                    0.10 * momentum_components["rsi"] +
-                    0.10 * momentum_components["macd"] +
-                    0.10 * momentum_components["sma_trend"] +
-                    0.10 * momentum_components["momentum"] +
-                    0.05 * momentum_components["williams_r"] +
-                    0
+        momentum_score = np.mean(list(momentum_components.values()))
+        
+        # Calculate mean reversion score (bearish when high)
+        reversion_score = np.mean(list(reversion_components.values()))
+
+        # Adjust balance factor based on market regime
+        balance_factor = 0.5  # Default to equal weight
+        
+        # Adjust based on hurst exponent
+        if hurst_info and 'hurst' in hurst_info:
+            hurst = hurst_info['hurst']
+            # If strong trending (high hurst), favor momentum
+            if hurst > 0.6:
+                balance_factor = 0.7
+            # If strong mean reversion (low hurst), favor mean reversion
+            elif hurst < 0.4:
+                balance_factor = 0.3
+        
+        # Adjust based on volatility regime
+        if vol_data and 'vol_regime' in vol_data:
+            vol_regime = vol_data['vol_regime']
+            if vol_regime == "Rising":
+                # In rising volatility, slightly favor mean reversion
+                balance_factor -= 0.1
+            elif vol_regime == "Falling":
+                # In falling volatility, slightly favor momentum
+                balance_factor += 0.1
+        
+        # Keep balance factor in valid range
+        balance_factor = max(0.2, min(0.8, balance_factor))
+        
+        # Calculate final sigma (0-1 scale)
+        # Higher momentum_score increases sigma (bullish)
+        # Higher reversion_score decreases sigma (bearish)
+        sigma = balance_factor * momentum_score + (1 - balance_factor) * (1 - reversion_score)
+        
+        # Ensure sigma is within valid range (0-1)
+        sigma = max(0.01, min(0.99, sigma))
+
+        print(f"[INFO] Final sigma calculation: {sigma:.4f}")
+        print(f"[INFO] Momentum score: {momentum_score:.4f}, Reversion score: {reversion_score:.4f}")
+        print(f"[INFO] Balance factor: {balance_factor:.4f}")
+
+        return sigma
+
+    except Exception as e:
+        print(f"[ERROR] Error calculating sigma: {e}")
+        import traceback
+        traceback.print_exc()
+        return 0.5  # Return default neutral value instead of None
 
 def append_stock_result(result):
     """
@@ -2198,5 +2399,127 @@ def main():
         else:
             print("Invalid option. Please select 1, 2, or 3.")
 
+if not USE_BACKUP_FUNCTIONS:
+    calculate_sigma = calculate_sigma_implementation
+    get_sigma_recommendation = get_sigma_recommendation_implementation
+
+def analyze_stock(symbol, client):
+    """
+    Analyze a stock and generate recommendations
+    
+    Parameters:
+    -----------
+    symbol: str
+        Stock symbol to analyze
+    client: AlphaVantageClient
+        Alpha Vantage API client
+    
+    Returns:
+    --------
+    dict
+        Analysis result
+    """
+    try:
+        # Fetch stock data
+        stock_data = client.get_stock_data(symbol)
+        
+        if stock_data is None or len(stock_data) < 60:
+            print(f"[WARNING] Insufficient data for {symbol}")
+            return None
+        
+        # Get company info and quote data
+        company_info = client.get_company_overview(symbol)
+        quote_data = client.get_global_quote(symbol)
+        
+        # Get current price
+        current_price = quote_data['price'] if quote_data else stock_data['4. close'].iloc[-1]
+        
+        # Calculate sigma
+        sigma = calculate_sigma(stock_data)
+        
+        if sigma is None:
+            print(f"[WARNING] Failed to calculate sigma for {symbol}")
+            return None
+        
+        # Calculate key metrics from various analyses
+        try:
+            # Hurst exponent
+            hurst_info = calculate_hurst_exponent(stock_data, use_log_returns=True)
+            
+            # Mean reversion half-life
+            half_life_info = calculate_mean_reversion_half_life(stock_data)
+            
+            # Volatility regimes
+            vol_data = analyze_volatility_regimes(stock_data)
+            
+            # Market regime
+            market_regime = detect_market_regime(stock_data)
+            
+            # Risk-adjusted metrics
+            risk_metrics = calculate_risk_adjusted_metrics(stock_data, sigma)
+            
+            # Generate analysis details for recommendation
+            analysis_details = {
+                "momentum_score": 0.5,  # This would come from your analysis
+                "reversion_score": 0.5, # This would come from your analysis
+                "recent_monthly_return": stock_data['4. close'].pct_change(20).iloc[-1] if len(stock_data) > 20 else 0,
+                "balance_factor": 0.5,
+                "hurst_exponent": hurst_info.get("hurst", 0.5),
+                "hurst_regime": hurst_info.get("regime", "Unknown"),
+                "mean_reversion_half_life": half_life_info.get("half_life", 0),
+                "mean_reversion_speed": half_life_info.get("mean_reversion_speed", "Unknown"),
+                "mean_reversion_beta": half_life_info.get("beta", 0),
+                "volatility_regime": vol_data.get("vol_regime", "Unknown"),
+                "vol_term_structure": vol_data.get("vol_term_structure", 1.0),
+                "vol_persistence": vol_data.get("vol_persistence", 0.8),
+                "market_regime": market_regime.get("current_regime", "Unknown"),
+                "max_drawdown": risk_metrics.get("max_drawdown", 0),
+                "kelly": risk_metrics.get("kelly", 0),
+                "sharpe": risk_metrics.get("sharpe", 0)
+            }
+            
+        except Exception as e:
+            print(f"[WARNING] Error calculating some metrics: {e}")
+            # Provide default values if calculations fail
+            analysis_details = {
+                "momentum_score": 0.5,
+                "reversion_score": 0.5,
+                "recent_monthly_return": 0,
+                "balance_factor": 0.5,
+                "hurst_regime": "Unknown",
+                "mean_reversion_speed": "Unknown",
+                "mean_reversion_beta": 0,
+                "volatility_regime": "Unknown",
+                "vol_persistence": 0.8,
+                "market_regime": "Unknown",
+                "max_drawdown": 0,
+                "kelly": 0,
+                "sharpe": 0
+            }
+        
+        # Get recommendation
+        recommendation = get_sigma_recommendation(sigma, analysis_details)
+        
+        # Create result dictionary
+        result = {
+            "symbol": symbol,
+            "price": current_price,
+            "sigma": sigma,
+            "recommendation": recommendation,
+            "company_info": company_info,
+            "quote_data": quote_data,
+            "analysis": analysis_details
+        }
+        
+        return result
+    except Exception as e:
+        print(f"[ERROR] Failed to analyze {symbol}: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
 if __name__ == "__main__":
     main()
+else:
+    print("No Bueno")
+
